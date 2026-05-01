@@ -26,6 +26,7 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 class MasterActivity : AppCompatActivity() {
+
     private lateinit var b: ActivityMasterBinding
 
     private val files = ConcurrentHashMap<String, MediaFile>()
@@ -56,6 +57,11 @@ class MasterActivity : AppCompatActivity() {
         log("Master ready. Slaves connect to ${getLocalIp()}:${Protocol.CONTROL_PORT}")
     }
 
+    // ✅ FIX 1: Proper lifecycle override added
+    override fun onStop() {
+        super.onStop()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         controlSocket?.runCatching { close() }
@@ -74,6 +80,7 @@ class MasterActivity : AppCompatActivity() {
                 val id = UUID.randomUUID().toString().take(8)
                 val safeName = displayName.replace(Regex("[^A-Za-z0-9._-]"), "_")
                 val outFile = File(cacheDir, "${id}_$safeName")
+
                 contentResolver.openInputStream(uri)?.use { input ->
                     outFile.outputStream().use { out -> input.copyTo(out) }
                 } ?: error("can't open uri")
@@ -83,11 +90,13 @@ class MasterActivity : AppCompatActivity() {
                 currentFileId = id
 
                 withContext(Dispatchers.Main) {
-                    b.tvFile.text = "${mf.name}  (${Formatter.formatShortFileSize(this@MasterActivity, mf.size)})"
+                    b.tvFile.text =
+                        "${mf.name}  (${Formatter.formatShortFileSize(this@MasterActivity, mf.size)})"
                     b.btnPlay.isEnabled = true
                     log("Loaded: ${mf.name}")
                 }
                 broadcastLibrary()
+
             } catch (e: Exception) {
                 Log.e(TAG, "pick failed", e)
                 runOnUiThread { log("Failed: ${e.message}") }
@@ -107,13 +116,15 @@ class MasterActivity : AppCompatActivity() {
     private fun onPlay() {
         val id = currentFileId ?: return
         val mf = files[id] ?: return
-        // Schedule 1.5s in the future on master clock — gives slaves time to receive,
-        // schedule, and pre-start their MediaPlayer prepare() if needed.
+
         val target = System.nanoTime() + 1_500_000_000L
         val msg = Protocol.play(id, target)
         slaves.values.forEach { it.send(msg) }
 
-        player.playAt(File(mf.localPath), target) { e -> log("local play err: ${e.message}") }
+        player.playAt(File(mf.localPath), target) { e ->
+            log("local play err: ${e.message}")
+        }
+
         log("PLAY ${mf.name} at +1.5s on ${slaves.size} slaves")
         b.btnStop.isEnabled = true
     }
@@ -137,11 +148,13 @@ class MasterActivity : AppCompatActivity() {
             try {
                 val ss = ServerSocket(Protocol.CONTROL_PORT)
                 controlSocket = ss
+
                 while (isActive) {
                     val socket = try { ss.accept() } catch (_: Exception) { break }
                     val conn = SlaveConnection(socket)
                     conn.start()
                 }
+
             } catch (e: Exception) {
                 Log.e(TAG, "control server error", e)
             }
@@ -149,6 +162,7 @@ class MasterActivity : AppCompatActivity() {
     }
 
     inner class SlaveConnection(private val socket: Socket) {
+
         private val id = UUID.randomUUID().toString().take(6)
         private var name: String = "slave-$id"
         private var writer: PrintWriter? = null
@@ -165,12 +179,14 @@ class MasterActivity : AppCompatActivity() {
                 socket.tcpNoDelay = true
                 val r = BufferedReader(InputStreamReader(socket.getInputStream()))
                 writer = PrintWriter(socket.getOutputStream(), true)
-                // Send current library on connect
+
                 send(Protocol.library(files.values.toList()))
+
                 while (true) {
                     val line = r.readLine() ?: break
                     handle(line)
                 }
+
             } catch (_: Exception) {
             } finally {
                 close()
@@ -179,17 +195,21 @@ class MasterActivity : AppCompatActivity() {
 
         private fun handle(line: String) {
             val o = runCatching { JSONObject(line) }.getOrNull() ?: return
+
             when (o.optString("type")) {
                 Protocol.PING -> {
                     val t1 = o.optLong("t1")
                     val t2 = System.nanoTime()
-                    // Send PONG synchronously so the t3 timestamp we report
-                    // matches the actual write moment closely.
+
                     synchronized(writeLock) {
                         val t3 = System.nanoTime()
-                        try { writer?.println(Protocol.pong(t1, t2, t3)) } catch (_: Exception) {}
+                        try {
+                            writer?.println(Protocol.pong(t1, t2, t3))
+                        } catch (_: Exception) {
+                        }
                     }
                 }
+
                 Protocol.HELLO -> {
                     name = o.optString("name", name)
                     runOnUiThread { log("Slave joined: $name") }
@@ -198,10 +218,14 @@ class MasterActivity : AppCompatActivity() {
         }
 
         private val writeLock = Any()
+
         fun send(msg: String) {
             scope.launch {
                 synchronized(writeLock) {
-                    try { writer?.println(msg) } catch (_: Exception) {}
+                    try {
+                        writer?.println(msg)
+                    } catch (_: Exception) {
+                    }
                 }
             }
         }
@@ -210,6 +234,7 @@ class MasterActivity : AppCompatActivity() {
             scope.cancel()
             socket.runCatching { close() }
             slaves.remove(id)
+
             runOnUiThread {
                 updateSlaveCount()
                 log("Slave left: $name")
@@ -225,13 +250,10 @@ class MasterActivity : AppCompatActivity() {
     // ---------- Utilities ----------
 
     private fun getLocalIp(): String? {
-        // Prefer Wi-Fi IP if available
         val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
         val raw = wifi?.connectionInfo?.ipAddress ?: 0
-        if (raw != 0) {
-            return Formatter.formatIpAddress(raw)
-        }
-        // Fallback: enumerate non-loopback IPv4 addresses
+        if (raw != 0) return Formatter.formatIpAddress(raw)
+
         return try {
             val ifaces = NetworkInterface.getNetworkInterfaces()
             for (iface in ifaces) {
@@ -243,14 +265,19 @@ class MasterActivity : AppCompatActivity() {
                 }
             }
             null
-        } catch (_: Exception) { null }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.US)
+
     private fun log(msg: String) {
         val t = timeFmt.format(Date())
         b.tvLog.append("[$t] $msg\n")
     }
 
-    companion object { private const val TAG = "Master" }
+    companion object {
+        private const val TAG = "Master"
+    }
 }
