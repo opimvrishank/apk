@@ -48,7 +48,7 @@ class MasterActivity : AppCompatActivity() {
         b.tvIp.text = getLocalIp() ?: "No WiFi IP"
         b.btnPick.setOnClickListener { pickAudio.launch("audio/*") }
         b.btnPlay.setOnClickListener { onPlay() }
-        b.btnStop.setOnClickListener { onStop() }
+        b.btnStop.setOnClickListener { stopPlayback() }
 
         mediaServer = MediaServer(files)
         mediaServer.start()
@@ -118,7 +118,7 @@ class MasterActivity : AppCompatActivity() {
         b.btnStop.isEnabled = true
     }
 
-    private fun onStop() {
+    private fun stopPlayback() {
         slaves.values.forEach { it.send(Protocol.stop()) }
         player.stop()
         log("STOP")
