@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:gravity="center">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="SyncSpeaker"
+        android:textSize="34sp"
+        android:textStyle="bold"
+        android:textColor="@color/text" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Play one song on multiple phones, in sync"
+        android:textColor="@color/textDim"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="48dp" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnMaster"
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:text="I'm the Master (host the music)"
+        android:textAllCaps="false"
+        android:textSize="16sp"
+        app:cornerRadius="14dp" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnSlave"
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:layout_marginTop="14dp"
+        android:text="I'm a Slave (just play along)"
+        android:textAllCaps="false"
+        android:textSize="16sp"
+        style="@style/Widget.Material3.Button.OutlinedButton"
+        app:cornerRadius="14dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="All phones must be on the same WiFi (or hotspot)"
+        android:textColor="@color/textDim"
+        android:textSize="12sp"
+        android:layout_marginTop="40dp" />
+
+</LinearLayout>
